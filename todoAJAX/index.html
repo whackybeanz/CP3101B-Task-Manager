@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>My To-Do Manager</title>
+		<link rel="stylesheet" href="style.css" type="text/css">
+		<script src="lib/jquery-2.1.0.js"></script>
+		<script src="lib/controller.js"></script>
+		<script>
+			//This script contains all HTML form submission related functions
+			function clearStatus(div_type, div_num){
+				$("#" + div_type + "-valid-" + div_num).html("");
+			}
+			
+			function login(){
+				$.getJSON("service/login.php", { username: $('#login-user').val(), 
+										 password: $('#login-pwd').val() }, function(reply){
+					if(reply['status'] == 'ok'){
+						//Successful login, remove login form details
+						$("#status-login").html("");
+						$("#form-login")[0].reset();
+						setUserView();
+					} else {
+						showVisitorPage();
+						
+						//If login failure was due to database error
+						if(reply['outcome'].length > 0){
+							$("#status-login").html("<h1>" + reply['outcome'][0] + "</h1><br/>" + reply['outcome'][1] + "<br/><br/><hr>");
+						}
+						
+						//Populate validation messages for user
+						for(var i = 0; i < reply['messages'].length; i++){
+							$("#login-valid-" + i).html("<span class='" + reply['status-class'][i] + "'>" + reply['messages'][i] + "</span>");
+						}
+						
+						//Reset and repopulate form data, except for password
+						$("#form-login")[0].reset();
+						$("#login-user").val(reply['form-data']['user'].trim());
+					}
+				});
+			}
+			
+			function register(){
+				$.getJSON("service/register.php", { username: $("#reg-user").val().trim(), 
+											password: $("#reg-pwd").val(), 
+											conf_pwd: $("#reg-conf-pwd").val(), 
+											bday: $("#reg-bday").val(), 
+											email: $("#reg-email").val().trim() }, function(reply){
+					if(reply['status'] == 'ok'){
+						//Display login form for user, inform on successful registration, populate login form
+						showVisitorPage();
+						$("#status-login").html("<h1>" + reply['outcome'][0] + "</h1><br/>" + reply['outcome'][1] + "<br/>" + reply['outcome'][2] + "<hr>");
+						$("#login-user").val(htmlspecialchars(reply['form-data']['user']));
+						
+						//Clear register form, validation messages
+						$("#form-reg")[0].reset();
+						$("#status-reg").html("");
+						for(var i = 0; i < reply['messages'].length; i++){
+							$("#reg-valid-" + i).html("");
+						}
+						$("#login-valid-" + 0).html("");
+						$("#login-valid-" + 1).html("");
+					} else {
+						showVisitorPage("#nav-reg");
+						
+						//If registration failure was due to database error
+						if(reply['outcome'].length > 0){
+							$("#status-reg").html("<h1>" + reply['outcome'][0] + "</h1><br/>" + reply['outcome'][1] + "<br/><br/><hr>");
+						}
+
+						//Populate validation messages for user
+						for(var i = 0; i < reply['messages'].length; i++){
+							$("#reg-valid-" + i).html("<span class='" + reply['status-class'][i] + "'>" + reply['messages'][i] + "</span>");
+						}
+						
+						//Reset and repopulate form data, except for password
+						$("#form-reg")[0].reset();
+						$("#reg-user").val(reply['form-data']['user']);
+						$("#reg-bday").val(reply['form-data']['bday']);
+						$("#reg-email").val(reply['form-data']['email']);
+					}
+				});
+			}
+				
+			function updateAcct(){
+				$.getJSON("service/updateAccount.php", { curr_pwd: $("#upd-curr-pwd").val(), 
+												 new_pwd: $("#upd-new-pwd").val(), 
+												 conf_new_pwd: $("#upd-conf-new-pwd").val(), 
+												 bday: $("#upd-bday").val(), 
+												 email: $("#upd-email").val() }, function(reply){
+					showUserPage("#nav-account");
+					
+					if(reply['status'] == 'ok'){
+						if(reply['outcome'].length > 0){
+							$("#status-upd").html("<h1>" + reply['outcome'][0] + "</h1><br/>" + reply['outcome'][1] + "<hr>");
+						}
+					
+						//Clear validation messages
+						for(var i = 0; i < reply['messages'].length; i++){
+							$("#upd-valid-" + i).html("");
+						}
+					} else {
+						$("#status-upd").html("");
+						if(reply['outcome'].length > 0){
+							$("#status-upd").html("<h1>" + reply['outcome'][0] + "</h1><br/>" + reply['outcome'][1] + "<hr>");
+						}
+						
+						//Populate validation messages for user
+						for(var i = 0; i < reply['messages'].length; i++){
+							$("#upd-valid-" + i).html("<span class='" + reply['status-class'][i] + "'>" + reply['messages'][i] + "</span>");
+						}
+					}
+					
+					//Repopulate form data, except for password
+					$("#form-upd")[0].reset();
+					$("#upd-bday").val(reply['form-data']['bday']);
+					$("#upd-email").val(reply['form-data']['email']);
+				});
+			}
+			
+			function addTask(){
+				$.getJSON("service/addTask.php", { name: $("#add-task-name").val(),
+										   hrs: $("#add-task-hrs").val(), 
+										   mins: $("#add-task-mins").val(), 
+										   notes: $("#add-task-notes").val() }, function(reply){				 
+					showUserPage("#nav-addTask");
+					
+					if(reply['outcome'].length > 0){
+						$("#status-add-task").html("<h1>" + reply['outcome'][0] + "</h1><br/>" + reply['outcome'][1] + "<hr>");
+					}
+					$("#form-add-task")[0].reset();
+					
+					if(reply['status'] != 'ok'){
+						//Populate validation messages for user				
+						for(var i = 0; i < reply['messages'].length; i++){
+							$("#add-task-valid-" + i).html("<span class='" + reply['status-class'][i] + "'>" + reply['messages'][i] + "</span>");
+						}	
+						
+						//Repopulate form data
+						$("#add-task-name").val(reply['form-data']['name']);
+						$("#add-task-hrs").val(reply['form-data']['hrs']);
+						$("#add-task-mins").val(reply['form-data']['mins']);
+						$("#add-task-notes").val(reply['form-data']['notes']);
+					}
+				});
+			}
+		</script>
+	</head>
+	
+	<body>
+		<div class="container">
+			<div class="header">
+				<h1><a id="site-id" onclick="checkLogin();">My To-Do Manager</a></h1>
+				<br/>
+				<div id="msg-user"></div>
+				<div id="msg-visitor">
+					<br/>
+				</div>
+			</div>
+		
+			<div class="navigation">
+				<div id="nav-user"> 
+					<nav>
+						<input type="button" id="nav-allTasks" value="All Tasks" />
+						<input type="button" id="nav-addTask" value="Add Task" />
+						<input type="button" id="nav-account" value="My Account" />
+						<input type="button" id="nav-about-user" value="About Us" />
+						<input type="button" id="nav-logout" value="Logout" />
+					</nav>
+				</div>
+				<div id="nav-visitor">
+					<nav>
+						<input type="button" id="nav-login" value="Login" />
+						<input type="button" id="nav-reg" value="Register" />
+						<input type="button" id="nav-about-vis" value="About Us" />
+					</nav>
+				</div>
+			</div>
+			
+			<div class="legend">
+				<h3>Legend</h3>
+				<table>
+					<tr>
+						<td class="inner-legend"><div class="green-box" style="cursor: default"></div></td>
+						<td class="inner-legend"><span class="text-align">Completed Time Unit (30 mins)</span></td>
+					</tr>
+					<tr>
+						<td class="inner-legend"><div class="red-box" style="cursor: default"></div></td>
+						<td class="inner-legend">Incomplete Time Unit (30 mins)</td>
+					</tr>
+					<tr>
+						<td class="inner-legend"><img class="white-bg" src="images/edit2.png" /></td>
+						<td class="inner-legend">Edit Task</td>
+					</tr>
+					<tr>
+						<td class="inner-legend"><img class="white-bg" src="images/delete2.png" /></td>
+						<td class="inner-legend">Delete Task</td>
+					</tr>
+					<tr>
+						<td class="inner-legend"><img class="white-bg" src="images/back.png" /></td>
+						<td class="inner-legend">Discard Changes (Edit mode)</td>
+					</tr>
+				</table>
+			</div>
+			
+			<div class="segment">
+				<div class="segment1">
+					<!--Login View-->
+					<div id="view-login">
+						<div id="status-login"></div>
+						<h1>Log In</h1>
+						<span class="msg-impt">* denotes required fields</span><br/><br/>
+						<form id="form-login">
+							<b>Username</b><span class="msg-impt">*</span><br/>
+							<input type="text" id="login-user" onkeydown="clearStatus('login', 0);" /><div class="validate-input" id="login-valid-0"></div><br/><br/>
+							
+							<b>Password</b><span class="msg-impt">*</span><br/>
+							<input type="password" id="login-pwd" onkeydown="clearStatus('login', 1);" /><div class="validate-input" id="login-valid-1"></div><br/><br/>
+							
+							<input type="submit" id="button-login" onclick="login(); return false;" value="Log In" />
+						</form>
+					</div>
+					
+					<!--Register View-->
+					<div id="view-reg">
+						<div id="status-reg"></div>
+						<h1>Register</h1>
+						<span class="msg-impt">* denotes required fields</span><br/><br/>
+						<form id="form-reg">
+							<b>Username</b><span class="msg-impt">*</span><br/>
+							<input type="text" id="reg-user" maxlength="20" onkeydown="clearStatus('reg', 0);"/><div class="validate-input" id="reg-valid-0"></div><br/><br/>
+
+							<b>Password</b><span class="msg-impt">*</span><br/>
+							<input type="password" id="reg-pwd" onkeydown="clearStatus('reg', 1);"><div class="validate-input" id="reg-valid-1"></div><br/><br/>
+
+							<b>Confirm Password</b><span class="msg-impt">*</span><br/>
+							<input type="password" id="reg-conf-pwd" onkeydown="clearStatus('reg', 2);"><div class="validate-input" id="reg-valid-2"></div><br/><br/>
+
+							<b>Birthday</b><span class="msg-impt">*</span><br/>
+							<input type="date" id="reg-bday" onkeydown="clearStatus('reg', 3);"><div class="validate-input" id="reg-valid-3"></div><br/><br/>
+
+							<b>Email</b><span class="msg-impt">*</span><br/>
+							<input type="test" id="reg-email" onkeydown="clearStatus('reg', 4);"><div class="validate-input" id="reg-valid-4"></div><br/><br/>
+
+							<input type="submit" id="button-reg" onclick="register(); return false;" value="Register" />
+						</form>
+					</div>
+					
+					<!--About Us View-->
+					<div id="view-about">
+						<h1>About Us</h1>
+						Welcome to To-Do Manager! Things are still in the works, so watch this space for further updates.<br/>
+						You can however begin to use the To-Do Manager and play around with it.<br/><br/>
+						Thanks for visiting!<br/><br/>
+						~To-Do Manager Team
+					</div>
+				
+					<!--All Tasks View-->
+					<div id="view-allTasks">
+						<div id="view-taskDetails"></div>
+					</div>
+					
+					<!--Add Task View-->
+					<div id="view-addTask">
+						<div id="status-add-task"></div>
+						<h1>Add Task</h1>
+						<span class="msg-impt">* denotes required fields</span><br/><br/>
+						<form id="form-add-task">
+							<b>Task Name</b><span class="msg-impt">*</span><br/>
+							<input type="text" id="add-task-name" onkeydown="clearStatus('add-task', 0);" /><div class="validate-input" id="add-task-valid-0"></div><br/><br/>
+							
+							<b>Duration of Task</b><span class="msg-impt">*</span><br/>
+							<span class="msg-impt">Maximum duration allowed: 24hrs 00mins</span><br/>
+							<select id="add-task-hrs" onchange="clearStatus('add-task', 1);"></select> hrs
+							<select id="add-task-mins" onchange="clearStatus('add-task', 1);"></select> mins <div class="validate-input" id="add-task-valid-1"></div><br/><br/>
+
+							<b>Notes</b><br/>
+							<textarea id="add-task-notes" rows="5" cols="40" class="no-resize"></textarea><br/>
+
+							<input type="submit" id="button-add-task" onclick="addTask(); return false;" value="Add Task" />
+						</form>
+					</div>
+					
+					<!--My Account View-->
+					<div id="view-account">
+						<div id="status-upd"></div>
+						<h1>My Account</h1>
+						<span class="msg-impt">* denotes required fields</span><br/><br/>
+						<form id="form-upd">
+							<div id="upd-user"></div>
+
+							<b>Current Password</b><span class="msg-impt">*</span><br/>
+							<span class="msg-impt">If you would like to change any account details below, please fill in your current password.</span><br/>
+							<input type="password" id="upd-curr-pwd" onkeydown="clearStatus('upd', 0);" /><div class="validate-input" id="upd-valid-0"></div><br/><br/>
+							
+							<b>New Password</b><br/>
+							<span class="msg-impt">Leave this blank if you do not intend to change your password.</span><br/>
+							<input type="password" id="upd-new-pwd" onkeydown="clearStatus('upd', 1);" /><div class="validate-input" id="upd-valid-1"></div><br/><br/>
+
+							<b>Confirm New Password</b><br/>
+							<span class="msg-impt">Leave this blank if you do not intend to change your password.</span><br/>
+							<input type="password" id="upd-conf-new-pwd" onkeydown="clearStatus('upd', 2);" /><div class="validate-input" id="upd-valid-2"></div><br/><br/>
+
+							<b>Birthday</b><span class="msg-impt">*</span><br/>
+							<input type="date" id="upd-bday" onkeydown="clearStatus('upd', 3);" /><div class="validate-input" id="upd-valid-3"></div><br/><br/>
+
+							<b>Email</b><span class="msg-impt">*</span><br/>
+							<input type="email" id="upd-email" onkeydown="clearStatus('upd', 4);" /><div class="validate-input" id="upd-valid-4"></div><br/><br/>
+
+							<input type="submit" id="button-upd-acct" onclick="updateAcct(); return false;" value="Update My Account" />
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+		<footer class="centralize">
+			- Thanks for visiting My To-Do Manager! -
+		</footer>
+	</body>
+</html>
